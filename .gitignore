@@ -1,0 +1,13 @@
+# Ignore compiled files
+out/
+bin/drever
+
+# Ignore folder '.vscode'
+.vscode/
+
+# Ignore extra
+github.sh
+http_example.txt
+
+# Ignore server build data
+bin/data
