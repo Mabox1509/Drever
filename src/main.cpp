@@ -8,8 +8,14 @@
 
 
 #include "../inc/utils/filesys.h"
-#include "../inc/network/http_server.h"
+#include "../inc/core/console.h"
 
+
+//[DEFINES]
+
+
+//[VARIABLES]
+std::atomic<bool> running = true;
 
 
 //[FUNCTIONS]
@@ -22,52 +28,47 @@ void SetWorkingDirectory(const std::string& path)
         std::cerr << "Error setting working directory to: " << path << std::endl;
     }
 }
-void Response(const Network::http_request_t& _request, Network::HttpServer* _obj)
-{
-    if(_request.path == "/")
-    {
-        // Redirect to the main page
-        _obj->ResposeText("Welcome to the HTTP Server!", _request.socket, 200);
-        return;
-    }
-    _obj->ResposeFile("WebPage" + _request.path, _request.socket, 200);
-}
 
 //[MAIN]
 int main(int argc, char* argv[])
 {
+    //DRAW LOGO
+    std::system("clear");
+    Console::Message(" /$$$$$$$  /$$$$$$$  /$$$$$$$$ /$$    /$$ /$$$$$$$$ /$$$$$$$ ");
+    Console::Message("| $$__  $$| $$__  $$| $$_____/| $$   | $$| $$_____/| $$__  $$");
+    Console::Message("| $$  \\ $$| $$  \\ $$| $$      | $$   | $$| $$      | $$  \\ $$");
+    Console::Message("| $$  | $$| $$$$$$$/| $$$$$   |  $$ / $$/| $$$$$   | $$$$$$$/");
+    Console::Message("| $$  | $$| $$__  $$| $$__/    \\  $$ $$/ | $$__/   | $$__  $$");
+    Console::Message("| $$  | $$| $$  \\ $$| $$        \\  $$$/  | $$      | $$  \\ $$");
+    Console::Message("| $$$$$$$/| $$  | $$| $$$$$$$$   \\  $/   | $$$$$$$$| $$  | $$");
+    Console::Message("|_______/ |__/  |__/|________/    \\_/    |________/|__/  |__/");
+    Console::Message("By Mabox1509");
+    Console::Message("Version 0.1.0");
+    Console::Message("---------------------------------------------------------------------\n");
+
     //SETUP APPLICATION
     std::string executable_path = argv[0];
     std::string working_directory = executable_path.substr(0, executable_path.find_last_of("/\\"));
     SetWorkingDirectory(working_directory);
     signal(SIGPIPE, SIG_IGN);
 
-    // START HTTP SERVER
-    Network::HttpServer server(8080, 10);
-    server.on_request = Response;
 
-    server.Start();
+    // START SYSTEMS
+    Console::Init();
 
-    while (true)
+
+
+
+    //MANTAIN APPLICATION
+    while (running)
     {
-        //Wait for "stop" command
-        std::string command;
-        std::cout << "Enter command (type 'stop' to exit): ";
-        std::getline(std::cin, command);
-        if (command == "stop")
-        {
-            server.Stop();
-            std::cout << "Server stopped." << std::endl;
-            break;
-        }
-        else
-        {
-            std::cout << "Unknown command: " << command << std::endl;
-        }
+        // Main loop can be used for other tasks or just to keep the program running
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
+
     // Clean up and exit
-    server.Stop();
+    //main_server.Stop();
     std::cout << "Exiting program." << std::endl;
     
 

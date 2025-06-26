@@ -18,7 +18,7 @@
 
 
 #include "../../inc/utils/filesys.h"
-#include "../../inc/log.h"
+#include "../../inc/core/console.h"
 
 
 //#include "../inc/log.h"
@@ -120,7 +120,7 @@ namespace Network
         }
 
         //CLOSE CONNECTIONS
-        std::this_thread::sleep_for(std::chrono::seconds(1)); //Wait 2 clients thread end
+        std::this_thread::sleep_for(std::chrono::seconds(2)); //Wait 2 clients thread end
         close(server_socket);
     }
     void HttpServer::HandleClient(int _socket)
@@ -140,6 +140,13 @@ namespace Network
         
         while ((_bytes_received = recv(_socket, _buffer, sizeof(_buffer), 0)) > 0)
         {
+            if(_bytes_received < 0)
+            {
+                
+                _valid = false;
+                break;
+            }
+
             if(!_headers_complete)
             {
                 _header.append(_buffer, _bytes_received);
@@ -478,7 +485,7 @@ namespace Network
 
         if(!SendAll(_socket, _file.data(), _file.size()))
         {
-            Log::Error("Error sending file body to client: %s", _file_path.c_str());
+            Console::Error("Error sending file body to client: %s", _file_path.c_str());
         }
     }
 
