@@ -322,7 +322,15 @@ void OnData(const Network::tcp_cllient_t& _client, char* _data, size_t _size, Ne
         if (it != Console::commands.end())
         {
             // Execute the command
-            it->second.func(_args, _client.socket, &_packet);
+            try
+            {
+                it->second.func(_args, _client.socket, &_packet);
+            }
+            catch(const std::exception& e)
+            {
+                _packet.AddMessage("Error executing command: " + std::string(e.what()), 0x02);
+            }
+            
         }
         else
         {
