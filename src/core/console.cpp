@@ -10,6 +10,12 @@
 #include <cstdio>
 #include <cstring>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+#include <fstream>
+#include <iomanip>
+
 
 #include "../../inc/compression.h"
 #include "../../inc/utils/string_utils.h"
@@ -17,6 +23,30 @@
 
 
 //[DEFINES & VARIABLES]
+/*enum class Color
+{
+    Default,
+
+    // Normal colors
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+
+    // Bright colors
+    BrightBlack,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
+};*/
 typedef struct log_t
 {
     std::string message;
@@ -68,6 +98,30 @@ void PrintLog(const char* _type, char _color, const char* _msg, va_list _args)
     auto _serialized_data = _packet.Serialize();
     console_server.Send2All(_serialized_data);
 }
+std::string FormatSize(size_t bytes) {
+    const char* suffixes[] = { "bytes", "KB", "MB", "GB", "TB" };
+    int i = 0;
+    double size = bytes;
+
+    while (size >= 1024.0 && i < 4) {
+        size /= 1024.0;
+        ++i;
+    }
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << size << " " << suffixes[i];
+    return oss.str();
+}
+// Genera una barra de progreso para representar uso
+std::string CreateBar(double percent, int width = 30) {
+    int filled = static_cast<int>(percent * width);
+    std::string bar = "[";
+    for (int i = 0; i < width; ++i)
+        bar += (i < filled) ? "█" : "░";
+    bar += "] " + std::to_string(static_cast<int>(percent * 100)) + "%";
+    return bar;
+}
+
 
 void CmdHelp(const std::vector<std::string>& _args, int _socket, Console::Packet* _packet)
 {
@@ -78,13 +132,137 @@ void CmdHelp(const std::vector<std::string>& _args, int _socket, Console::Packet
     }
     _packet->AddMessage(" ", 0);
 }
+void CmdStatus(const std::vector<std::string>& _args, int _socket, Console::Packet* _packet)
+{
+    std::string line, ignore;
+
+    // --- RAM Usage ---
+    std::ifstream status("/proc/self/status");
+    _packet->AddMessage("== Memory Usage ==", 0x03);
+    while (std::getline(status, line)) {
+        if (line.find("VmRSS:") == 0 || line.find("VmSize:") == 0) {
+            _packet->AddMessage(line, 0x00);
+        }
+    }
+
+    // --- CPU Usage & Info ---
+    _packet->AddMessage("", 0);
+    _packet->AddMessage("== CPU Info & Usage ==", 0x03);
+
+    // Obtener número de núcleos
+    int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+
+    // Leer /proc/self/stat para tiempos
+    std::ifstream stat("/proc/self/stat");
+    long utime = 0, stime = 0, starttime = 0;
+    for (int i = 0; i < 13; ++i) stat >> ignore;
+    stat >> utime >> stime;
+    for (int i = 0; i < 4; ++i) stat >> ignore; // saltar campos hasta llegar a starttime
+    stat >> starttime;
+
+    long ticks_per_sec = sysconf(_SC_CLK_TCK);
+    double total_time = (utime + stime) / (double)ticks_per_sec;
+
+    // Leer tiempo desde que se inició el sistema
+    std::ifstream uptime_file("/proc/uptime");
+    double uptime_seconds = 0.0;
+    uptime_file >> uptime_seconds;
+
+    // Calcular tiempo que lleva el proceso corriendo
+    double process_start_time = starttime / (double)ticks_per_sec;
+    double elapsed_time = uptime_seconds - process_start_time;
+
+    // Calcular uso de CPU en porcentaje
+    double cpu_usage_percent = (elapsed_time > 0) ? (total_time / elapsed_time) * 100.0 / num_cpus : 0.0;
+    double user_time = utime / (double)ticks_per_sec;
+    double system_time = stime / (double)ticks_per_sec;
+
+    // Leer velocidad del CPU
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string cpu_line, cpu_mhz = "N/A", model_name = "Unknown";
+    while (std::getline(cpuinfo, cpu_line)) {
+        if (cpu_line.find("model name") != std::string::npos && model_name == "Unknown") {
+            model_name = cpu_line.substr(cpu_line.find(":") + 2);
+        } else if (cpu_line.find("cpu MHz") != std::string::npos && cpu_mhz == "N/A") {
+            cpu_mhz = cpu_line.substr(cpu_line.find(":") + 2);
+        }
+        if (cpu_mhz != "N/A" && model_name != "Unknown") break;
+    }
+    double ghz = std::stod(cpu_mhz) / 1000.0;
+
+    // Mostrar datos
+    _packet->AddMessage("CPU Model: " + model_name, 0x00);
+    _packet->AddMessage("CPU Speed: " + std::to_string(ghz) + " GHz", 0x00);
+    _packet->AddMessage("CPU Cores: " + std::to_string(num_cpus), 0x00);
+    _packet->AddMessage("Process uptime: " + std::to_string(elapsed_time) + " s", 0x00);
+    _packet->AddMessage("User time: " + std::to_string(user_time) + " s", 0x00);
+    _packet->AddMessage("System time: " + std::to_string(system_time) + " s", 0x00);
+    _packet->AddMessage("Total CPU time: " + std::to_string(total_time) + " s", 0x00);
+    _packet->AddMessage("CPU usage: " + std::to_string(cpu_usage_percent) + " %", 0x00);
+    _packet->AddMessage(CreateBar(cpu_usage_percent / 100.0), 0x00);
+
+
+    // --- Network Usage ---
+    std::ifstream net("/proc/net/dev");
+    _packet->AddMessage("", 0);
+    _packet->AddMessage("== Network Usage ==", 0x03);
+    for (int i = 0; i < 2; ++i) std::getline(net, line); // Skip headers
+    while (std::getline(net, line)) {
+        auto pos = line.find(':');
+        if (pos == std::string::npos) continue;
+        std::string iface = line.substr(0, pos);
+        std::istringstream data(line.substr(pos + 1));
+        long rx, tx;
+        data >> rx;
+        for (int i = 0; i < 7; ++i) data >> ignore;
+        data >> tx;
+        _packet->AddMessage(iface + " RX: " + FormatSize(rx) + ", TX: " + FormatSize(tx), 0x00);
+    }
+
+    // --- Disk Usage (real path) ---
+    _packet->AddMessage("", 0);
+    _packet->AddMessage("== Disk Usage (Executable Drive) ==", 0x03);
+
+    char exe_path[1024];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len != -1) {
+        exe_path[len] = '\0';
+
+        // Obtener solo el directorio
+        std::string exe_dir(exe_path);
+        auto last_slash = exe_dir.find_last_of('/');
+        if (last_slash != std::string::npos)
+            exe_dir = exe_dir.substr(0, last_slash + 1);
+
+        struct statvfs disk;
+        if (statvfs(exe_dir.c_str(), &disk) == 0) {
+            unsigned long total = disk.f_blocks * disk.f_frsize;
+            unsigned long free  = disk.f_bfree  * disk.f_frsize;
+            unsigned long avail = disk.f_bavail * disk.f_frsize;
+            unsigned long used  = total - free;
+
+            double used_percent = static_cast<double>(used) / total;
+
+            _packet->AddMessage("Path: " + exe_dir, 0x00);
+            _packet->AddMessage("Total: " + FormatSize(total), 0x00);
+            _packet->AddMessage("Used : " + FormatSize(used), 0x00);
+            _packet->AddMessage("Free : " + FormatSize(avail), 0x00);
+            _packet->AddMessage(CreateBar(used_percent), 0x00);
+        } else {
+            _packet->AddMessage("Error: could not access filesystem stats for " + exe_dir, 0x04);
+        }
+    }
+
+
+    _packet->AddMessage("", 0);
+}
 void CmdStop(const std::vector<std::string>& _args, int _socket, Console::Packet* _packet)
 {
     Console::Message("Stopping console server...");
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     _packet->AddKick("Server is stopping.");
-    console_server.Send(_packet->Serialize(), _socket);
+    console_server.Send2All(_packet->Serialize());
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     console_server.Stop();
@@ -274,6 +452,7 @@ namespace Console
         // Register default commands
         RegisterCommand("help", "Shows a list of commands", CmdHelp);
         RegisterCommand("stop", "Stop the server", CmdStop);
+        RegisterCommand("status", "Shows the server status", CmdStatus);
 
         console_server.Start();
     }
