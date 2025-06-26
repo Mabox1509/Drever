@@ -1,7 +1,7 @@
 # Variables
 CXX := g++
 CXXFLAGS := -Wall -Wextra -O0 
-LDFLAGS := -lz -llua5.4 -lm -lpthread
+LDFLAGS := -lz -lm -lpthread
 EXECUTABLE := bin/drever
 
 # Busca todos los .cpp en src/ y sus subdirectorios

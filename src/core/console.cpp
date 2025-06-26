@@ -112,7 +112,6 @@ std::string FormatSize(size_t bytes) {
     oss << std::fixed << std::setprecision(2) << size << " " << suffixes[i];
     return oss.str();
 }
-// Genera una barra de progreso para representar uso
 std::string CreateBar(double percent, int width = 30) {
     int filled = static_cast<int>(percent * width);
     std::string bar = "[";
@@ -120,6 +119,12 @@ std::string CreateBar(double percent, int width = 30) {
         bar += (i < filled) ? "█" : "░";
     bar += "] " + std::to_string(static_cast<int>(percent * 100)) + "%";
     return bar;
+}
+double GetCpuFrequencyGHz() {
+    std::ifstream freq_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq");
+    double mhz = 0.0;
+    freq_file >> mhz;
+    return mhz / 1000.0; // MHz a GHz
 }
 
 
@@ -188,7 +193,7 @@ void CmdStatus(const std::vector<std::string>& _args, int _socket, Console::Pack
         }
         if (cpu_mhz != "N/A" && model_name != "Unknown") break;
     }
-    double ghz = std::stod(cpu_mhz) / 1000.0;
+    double ghz = GetCpuFrequencyGHz();
 
     // Mostrar datos
     _packet->AddMessage("CPU Model: " + model_name, 0x00);
