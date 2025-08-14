@@ -18,7 +18,7 @@
 
 
 #include "../../inc/utils/filesys.h"
-#include "../../inc/core/console.h"
+#include "../../inc/log.h"
 
 
 //#include "../inc/log.h"
@@ -485,7 +485,7 @@ namespace Network
 
         if(!SendAll(_socket, _file.data(), _file.size()))
         {
-            Console::Error("Error sending file body to client: %s", _file_path.c_str());
+            Log::Error("Error sending file body to client: %s", _file_path.c_str());
         }
     }
 

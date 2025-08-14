@@ -1,4 +1,4 @@
-#include "../inc/compression.h"
+#include "../../inc/utils/compression.h"
 #include <zlib.h>
 #include <stdexcept>
 #include <iostream>

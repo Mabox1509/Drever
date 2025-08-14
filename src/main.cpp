@@ -6,17 +6,16 @@
 #include <fstream>
 #include <signal.h>
 
-
+#include "../inc/network/tcp_server.h"
 #include "../inc/utils/filesys.h"
-#include "../inc/core/console.h"
-
+#include "../inc/log.h"
 
 //[DEFINES]
 
 
 //[VARIABLES]
-std::atomic<bool> running = true;
-
+const char app_key[4] = {'D','R','M','S'};
+Network::TcpServer server(32100, app_key);
 
 //[FUNCTIONS]
 void SetWorkingDirectory(const std::string& path)
@@ -29,22 +28,36 @@ void SetWorkingDirectory(const std::string& path)
     }
 }
 
+void ServerJoin(const Network::tcp_cllient_t& _client, Network::TcpServer* _server)
+{
+    Log::Message("New client :D");
+}
+void ServerData(const Network::tcp_cllient_t& _client, char* _data, size_t _size, Network::TcpServer* _server)
+{
+
+    std::cout << _data << std::endl;
+}
+void ServerLeave(const Network::tcp_cllient_t& _client, Network::TcpServer* _server)
+{
+    Log::Message("Goodbye client D:");
+}
+
 //[MAIN]
 int main(int argc, char* argv[])
 {
     //DRAW LOGO
     std::system("clear");
-    Console::Message(" /$$$$$$$  /$$$$$$$  /$$$$$$$$ /$$    /$$ /$$$$$$$$ /$$$$$$$ ");
-    Console::Message("| $$__  $$| $$__  $$| $$_____/| $$   | $$| $$_____/| $$__  $$");
-    Console::Message("| $$  \\ $$| $$  \\ $$| $$      | $$   | $$| $$      | $$  \\ $$");
-    Console::Message("| $$  | $$| $$$$$$$/| $$$$$   |  $$ / $$/| $$$$$   | $$$$$$$/");
-    Console::Message("| $$  | $$| $$__  $$| $$__/    \\  $$ $$/ | $$__/   | $$__  $$");
-    Console::Message("| $$  | $$| $$  \\ $$| $$        \\  $$$/  | $$      | $$  \\ $$");
-    Console::Message("| $$$$$$$/| $$  | $$| $$$$$$$$   \\  $/   | $$$$$$$$| $$  | $$");
-    Console::Message("|_______/ |__/  |__/|________/    \\_/    |________/|__/  |__/");
-    Console::Message("By Mabox1509");
-    Console::Message("Version 0.1.0");
-    Console::Message("---------------------------------------------------------------------\n");
+    Log::Message(" /$$$$$$$  /$$$$$$$  /$$$$$$$$ /$$    /$$ /$$$$$$$$ /$$$$$$$ ");
+    Log::Message("| $$__  $$| $$__  $$| $$_____/| $$   | $$| $$_____/| $$__  $$");
+    Log::Message("| $$  \\ $$| $$  \\ $$| $$      | $$   | $$| $$      | $$  \\ $$");
+    Log::Message("| $$  | $$| $$$$$$$/| $$$$$   |  $$ / $$/| $$$$$   | $$$$$$$/");
+    Log::Message("| $$  | $$| $$__  $$| $$__/    \\  $$ $$/ | $$__/   | $$__  $$");
+    Log::Message("| $$  | $$| $$  \\ $$| $$        \\  $$$/  | $$      | $$  \\ $$");
+    Log::Message("| $$$$$$$/| $$  | $$| $$$$$$$$   \\  $/   | $$$$$$$$| $$  | $$");
+    Log::Message("|_______/ |__/  |__/|________/    \\_/    |________/|__/  |__/");
+    Log::Message("By Mabox1509");
+    Log::Message("Version 0.1.0");
+    Log::Message("---------------------------------------------------------------------\n");
 
     //SETUP APPLICATION
     std::string executable_path = argv[0];
@@ -54,22 +67,20 @@ int main(int argc, char* argv[])
 
 
     // START SYSTEMS
-    Console::Init();
-
+    server.on_join = ServerJoin;
+    server.on_data = ServerData;
+    server.on_leave = ServerLeave;
+    server.Start();
 
 
 
     //MANTAIN APPLICATION
-    while (running)
+    while (server.IsAwake())
     {
-        // Main loop can be used for other tasks or just to keep the program running
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        /* code */
     }
+    
 
-
-    // Clean up and exit
-    //main_server.Stop();
-    std::cout << "Exiting program." << std::endl;
     
 
     return 0;

@@ -27,6 +27,13 @@ namespace Network
         int socket;
         struct sockaddr_in servaddr, cli;
         std::thread thread;
+
+        bool is_sending = false;
+        std::mutex send_mutex;
+        std::condition_variable send_cv;
+
+        size_t inbox_expect;
+        std::vector<char> inbox;
     } tcp_cllient_t;
 
 
@@ -46,6 +53,8 @@ namespace Network
         uint16_t port;
         int server_socket;
 
+        char pkg_key[4];
+
         std::thread main_thread;
         struct sockaddr_in servaddr, cli;
 
@@ -57,7 +66,7 @@ namespace Network
 
         //[CONSTRUCTORS]
         public:
-        TcpServer(uint16_t _port);
+        TcpServer(uint16_t _port, const char _key[4]);
         ~TcpServer();
 
         //[FUNCTIONS]

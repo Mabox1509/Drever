@@ -20,12 +20,11 @@
 
 
 #include "../../inc/utils/filesys.h"
-
-
-//#include "../inc/log.h"
+#include "../../inc/log.h"
 
 //[PRIVATE DATA]
-#define PACKAGE_SIZE 2048
+#define PACKAGE_SIZE 1024
+#define PROTOCOL_VER 0
 
 //[PRIVATE FUNCTIONS]
 
@@ -34,12 +33,13 @@
 namespace Network
 {
     //[CONSTRUCTORS]
-    TcpServer::TcpServer(uint16_t _port)
+    TcpServer::TcpServer(uint16_t _port, const char _key[4])
     {
         running = false;
         port = _port;
         server_socket = -1;
 
+        std::memcpy(pkg_key, _key, sizeof(pkg_key));
     }
     TcpServer::~TcpServer()
     {
@@ -87,6 +87,8 @@ namespace Network
 
             auto client = std::make_shared<tcp_client_t>();
             client->socket = _socket;
+            client->inbox_expect = 0;
+            client->is_sending = false;
 
             // Guardar en lista antes de lanzar el hilo
             {
@@ -111,21 +113,68 @@ namespace Network
     void TcpServer::ClientLoop(std::shared_ptr<tcp_client_t> _client)
     {
         //std::cout << "New client connected: " << _client->socket << std::endl;
-        char buffer[PACKAGE_SIZE];
+        char _buffer[PACKAGE_SIZE];
 
         if (on_join) on_join(*_client, this); // Evento de conexión
 
         
         while (true)
         {
-            size_t _bytes = recv(_client->socket, buffer, sizeof(buffer), 0);
-            if(_bytes <= 0)
+            if(_client->inbox_expect <= 0)
             {
-                break; // Salir del bucle si no hay datos o error
+                ssize_t _headrcv = recv(_client->socket, _buffer, 12, 0);
+                if(_headrcv < 12)
+                    break; //Disconnect
+
+                //READ HEADER
+                uint32_t _appkey;
+                uint32_t _pcksize;
+                uint32_t _apikey;
+
+                std::memcpy(&_appkey,  _buffer,       sizeof(uint32_t));
+                std::memcpy(&_pcksize, _buffer + 4,   sizeof(uint32_t));
+                std::memcpy(&_apikey,  _buffer + 8,   sizeof(uint32_t));
+
+
+                //CHECK VERSION
+                if(std::memcmp(pkg_key, &_appkey, 4) != 0 || _apikey != PROTOCOL_VER)
+                {
+                    Log::Error("Packet rejected from client %d: invalid API key or incompatible version", _client->socket);
+                    break;
+                }
+
+
+                //SET VALUES
+                _client->inbox_expect = _pcksize;
+                _client->inbox.clear();
+            }
+            else
+            {
+                //RECIVE
+                size_t _to_receive = std::min
+                (
+                    (size_t)PACKAGE_SIZE,
+                    _client->inbox_expect - _client->inbox.size()
+                );
+
+                ssize_t _data_received = recv(_client->socket, _buffer, _to_receive, 0);
+                if (_data_received <= 0)
+                {
+                    break; // Disconnect or error
+                }
+
+                //APPEND
+                _client->inbox.insert(_client->inbox.end(), _buffer, _buffer + _data_received);
+
+
+                //END
+                if(_client->inbox.size() >= _client->inbox_expect)
+                {
+                    if (on_data) on_data(*_client, _client->inbox.data(), _client->inbox.size(), this);
+                    _client->inbox_expect = 0;
+                }
             }
 
-            //std::cout << "Received data from client: " << _client->socket << std::endl;
-            on_data(*_client, buffer, _bytes, this);
 
             if (!running) break;
         }
@@ -213,7 +262,54 @@ namespace Network
     void TcpServer::Send(const std::vector<unsigned char>& _data, int _socket)
     {
         if (_socket < 0) return;
-        send(_socket, _data.data(), _data.size(), 0);
+
+        std::shared_ptr<tcp_client_t> client;
+        {
+            std::lock_guard<std::mutex> lock(clients_mutex);
+            auto it = std::find_if(clients.begin(), clients.end(),
+                [_socket](const std::shared_ptr<tcp_client_t>& c) {
+                    return c->socket == _socket;
+                });
+            if (it == clients.end()) return;
+            client = *it;
+        }
+
+        std::unique_lock<std::mutex> lock(client->send_mutex);
+        client->send_cv.wait(lock, [&] { return !client->is_sending; });
+
+        client->is_sending = true;
+        lock.unlock();
+
+        // GENERATE SEND BUFFER usando vector para manejo seguro de memoria
+        size_t _sendsize = _data.size() + 12;
+        std::vector<char> _send(_sendsize);
+
+        uint32_t payload = static_cast<uint32_t>(_data.size());
+        uint32_t version = PROTOCOL_VER;
+
+        std::memcpy(_send.data(), &pkg_key, sizeof(uint32_t));
+        std::memcpy(_send.data() + 4, &payload, sizeof(uint32_t));
+        std::memcpy(_send.data() + 8, &version, sizeof(uint32_t));
+        std::memcpy(_send.data() + 12, _data.data(), _data.size());
+
+        // SEND
+        size_t _send_seek = 0;
+        while (_send_seek < _sendsize)
+        {
+            int sent = send(_socket, _send.data() + _send_seek, _sendsize - _send_seek, 0);
+            if (sent <= 0)
+            {
+                // error o desconexión
+                break;
+            }
+            _send_seek += sent;
+        }
+
+        // UNLOCK SENDING
+        lock.lock();
+        client->is_sending = false;
+        lock.unlock();
+        client->send_cv.notify_one();
     }
     void TcpServer::Send2All(const std::vector<unsigned char>& _data)
     {
@@ -223,11 +319,14 @@ namespace Network
         {
             if (client->socket != -1)
             {
-                send(client->socket, _data.data(), _data.size(), 0);
+                // Usa la función Send que ya maneja sincronización
+                Send(_data, client->socket);
             }
         }
     }
 }
+
+
 /*
 void ClientLoop(int _socket)
     {
