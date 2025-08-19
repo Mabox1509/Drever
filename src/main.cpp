@@ -31,7 +31,10 @@ void SetWorkingDirectory(const std::string& path)
         std::cerr << "Error setting working directory to: " << path << std::endl;
     }
 }
-
+void InterruptHandler()
+{
+    ConsoleHandler::Stop();
+}
 
 
 //[MAIN]
@@ -57,6 +60,7 @@ int main(int argc, char* argv[])
     std::string working_directory = executable_path.substr(0, executable_path.find_last_of("/\\"));
     SetWorkingDirectory(working_directory);
     signal(SIGPIPE, SIG_IGN);
+    //signal(SIGINT, )
 
 
     // START SYSTEMS

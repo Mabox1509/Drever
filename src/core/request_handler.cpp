@@ -9,20 +9,28 @@
 #define PORT 5000
 
 
-//[REQUEST]
+//[HANDLER]
 void OnRequest(const Network::http_request_t& _request, Network::HttpServer* _object)
 {
+    Log::Message("http request: %s", _request.path.c_str());
     auto _entry = RequestHandler::routes.find(_request.path);
 
     if(_entry == RequestHandler::routes.end())
     {
-        _object->ResposeText("", _request.socket, 404);
+        _object->ResposeText("mal", _request.socket);
     }
     else
     {
-        _object->ResposeText("Bien", _request.socket);
+        _entry->second.handler(_request, _object);
     }
 }
+
+//[REQUEST]
+void ReqIcon(const Network::http_request_t& _request, Network::HttpServer* _object)
+{
+    _object->ResposeFile("res/icon.ico", _request.socket);
+}
+
 
 
 //[NAMESPACE]
@@ -54,6 +62,9 @@ namespace RequestHandler
     }
     void Init()
     {
+        //ROUTES
+        AddRoute("/favicon.ico", ReqIcon, HttpMethod::GET);
+
         //SETUP
         server.on_request = OnRequest;
 

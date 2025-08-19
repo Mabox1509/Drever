@@ -20,6 +20,7 @@ namespace ConsoleHandler
     void AddCommands(const std::string& _key, Handler _handler);
     void Init();
 
+    void Stop();
     void Await();
 }
 #endif //!_CONSOLE_HANDLER_H

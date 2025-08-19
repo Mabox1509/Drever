@@ -372,7 +372,7 @@ namespace Network
     }
     void HttpServer::ResposeFile(const std::string& _file_path, int _socket, int _code)
     {
-        std::cout << "ResposeFile: " << _file_path << std::endl;
+        //std::cout << "ResposeFile: " << _file_path << std::endl;
         if (!FileSys::FileExists(_file_path))
         {
             

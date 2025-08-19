@@ -33,6 +33,11 @@ namespace ConsoleHandler
 
     }
 
+    void Stop()
+    {
+        Log::Message("Stoping thread");
+        server.Stop();
+    }
     void Await()
     {
         while (server.IsAwake())
