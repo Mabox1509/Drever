@@ -4,6 +4,7 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include <shared_mutex>
 
 //[NAMESPACE]
 namespace Log
@@ -25,6 +26,7 @@ namespace Log
     
     //[VARIABLES]
     extern std::vector<log_t> logs;
+    extern std::shared_mutex log_mutex;
 
 
     //[FUNCTIONS]

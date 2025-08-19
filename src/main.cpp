@@ -1,12 +1,15 @@
 //[INCLUDES]
 #include <iostream>
-
-#include <unistd.h>
 #include <filesystem>
-#include <fstream>
+#include <unistd.h>
 #include <signal.h>
+#include <fstream>
 
-#include "../inc/network/tcp_server.h"
+
+#include "../inc/core/console_handler.h"
+#include "../inc/core/request_handler.h"
+#include "../inc/utils/compression.h"
+#include "../inc/core/user_manager.h"
 #include "../inc/utils/filesys.h"
 #include "../inc/log.h"
 
@@ -14,8 +17,9 @@
 
 
 //[VARIABLES]
-const char app_key[4] = {'D','R','M','S'};
-Network::TcpServer server(32100, app_key);
+
+
+
 
 //[FUNCTIONS]
 void SetWorkingDirectory(const std::string& path)
@@ -28,19 +32,7 @@ void SetWorkingDirectory(const std::string& path)
     }
 }
 
-void ServerJoin(const Network::tcp_cllient_t& _client, Network::TcpServer* _server)
-{
-    Log::Message("New client :D");
-}
-void ServerData(const Network::tcp_cllient_t& _client, char* _data, size_t _size, Network::TcpServer* _server)
-{
 
-    std::cout << _data << std::endl;
-}
-void ServerLeave(const Network::tcp_cllient_t& _client, Network::TcpServer* _server)
-{
-    Log::Message("Goodbye client D:");
-}
 
 //[MAIN]
 int main(int argc, char* argv[])
@@ -57,8 +49,9 @@ int main(int argc, char* argv[])
     Log::Message("|_______/ |__/  |__/|________/    \\_/    |________/|__/  |__/");
     Log::Message("By Mabox1509");
     Log::Message("Version 0.1.0");
-    Log::Message("---------------------------------------------------------------------\n");
+    Log::Message("---------------------------------------------------------------------");
 
+    
     //SETUP APPLICATION
     std::string executable_path = argv[0];
     std::string working_directory = executable_path.substr(0, executable_path.find_last_of("/\\"));
@@ -67,20 +60,14 @@ int main(int argc, char* argv[])
 
 
     // START SYSTEMS
-    server.on_join = ServerJoin;
-    server.on_data = ServerData;
-    server.on_leave = ServerLeave;
-    server.Start();
-
-
-
-    //MANTAIN APPLICATION
-    while (server.IsAwake())
-    {
-        /* code */
-    }
+    UserManager::Init();
+    RequestHandler::Init();
     
+    ConsoleHandler::Init();
 
+
+    // MANTAIN APPLICATION
+    ConsoleHandler::Await();
     
 
     return 0;

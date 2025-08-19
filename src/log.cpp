@@ -6,11 +6,15 @@
 #include <cstdio>
 #include <unistd.h>
 #include <sstream>
+#include <mutex>
+
 
 //[NAMESPACE]
 namespace Log
 {
     std::vector<log_t> logs; // almacenamiento interno
+    std::shared_mutex log_mutex;
+
 
     //Print log
     static void AddLog(LogType type, const char* msg, va_list args)
@@ -44,8 +48,17 @@ namespace Log
             default: break;
         }
 
-        // --- DEBUG: imprimir en consola ---
-        printf("[%s][%s]: %s\n", ts, type_str, buffer);
+        {
+            std::unique_lock<std::shared_mutex> lock(log_mutex);
+            logs.push_back(log_t{
+                std::string(buffer),
+                type,
+                now
+            });
+
+            // --- DEBUG: imprimir en consola ---
+            printf("[%s][%s]: %s\n", ts, type_str, buffer);
+        }   
     }
 
 
@@ -72,17 +85,5 @@ namespace Log
         va_start(args, msg);
         AddLog(LogType::Error, msg, args);
         va_end(args);
-    }
-
-    // Devolver logs (copia)
-    std::vector<log_t> GetLogs()
-    {
-        return logs;
-    }
-
-    // O devolver referencia const para no copiar
-    const std::vector<log_t>& GetLogsRef()
-    {
-        return logs;
     }
 }
